@@ -43,7 +43,9 @@ app = Flask(__name__)
 # Configurações de segurança
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')  # Chave secreta para operações admin
+# Aceita SUPABASE_SERVICE_KEY ou SUPABASE_SERVICE_ROLE
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE')  # Chave secreta para operações admin
+MARKET_TABLE = os.getenv('SUPABASE_MARKET_TABLE', 'market_data')
 
 # JWT Configuration
 JWT_SECRET = os.getenv('JWT_SECRET', secrets.token_urlsafe(32))
@@ -258,6 +260,81 @@ def call_supabase_function(function_name: str, data: Dict) -> Optional[Dict]:
         logger.error(f"Erro ao chamar Supabase: {e}")
         return None
 
+# ---------- Market lookup (server-side) ----------
+
+def _supabase_rest_get(table: str, params: Dict[str, str], select: str) -> Optional[Dict]:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        logger.error("Supabase REST não configurado (URL/SERVICE_KEY)")
+        return None
+    try:
+        import urllib.parse as up
+        base = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}"
+        q = {**params, 'select': select, 'limit': '1'}
+        url = base + '?' + up.urlencode(q, safe='*,|().')
+        headers = {
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': f"Bearer {SUPABASE_SERVICE_KEY}",
+        }
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list) and data:
+            return data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Supabase REST get error: {e}")
+        return None
+
+
+@app.route('/market/lookup', methods=['POST'])
+@require_auth
+@limiter.limit("60 per minute")
+def market_lookup():
+    """Resolve preços (fontes) e liquidez para um item/variante.
+    Body JSON: { name_base, is_stattrak, is_souvenir, condition }
+    Retorna: { price_whitemarket, price_csfloat, price_buff163, highest_offer_buff163, liquidity_score }
+    """
+    try:
+        payload = request.get_json(force=True) or {}
+        name_base = payload.get('name_base', '').strip()
+        is_st = str(bool(payload.get('is_stattrak', False))).lower()
+        is_sv = str(bool(payload.get('is_souvenir', False))).lower()
+        condition = payload.get('condition', '')
+        if not name_base:
+            return jsonify({'ok': False, 'error': 'name_base obrigatório'}), 400
+
+        # market_data row
+        md = _supabase_rest_get(
+            MARKET_TABLE,
+            {
+                'name_base': f'eq.{name_base}',
+                'stattrak': f'eq.{is_st}',
+                'souvenir': f'eq.{is_sv}',
+                'condition': f'eq.{condition}' if condition else 'is.null',
+            },
+            'item_key,name_base,stattrak,souvenir,condition,price_whitemarket,price_csfloat,price_buff163,highest_offer_buff163'
+        ) or {}
+
+        item_key = md.get('item_key')
+        liq_score = 0
+        if item_key:
+            liq = _supabase_rest_get('liquidity', {'item_key': f'eq.{item_key}'}, 'liquidity_score') or {}
+            liq_score = int(liq.get('liquidity_score') or 0)
+
+        resp = {
+            'ok': True,
+            'price_whitemarket': md.get('price_whitemarket'),
+            'price_csfloat': md.get('price_csfloat'),
+            'price_buff163': md.get('price_buff163'),
+            'highest_offer_buff163': md.get('highest_offer_buff163'),
+            'liquidity_score': liq_score,
+        }
+        return jsonify(resp)
+
+    except Exception as e:
+        logger.error(f"market_lookup error: {e}")
+        return jsonify({'ok': False, 'error': 'internal_error'}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check com informações de segurança."""
@@ -268,7 +345,7 @@ def health_check():
             'jwt_enabled': True,
             'rate_limiting': True,
             'api_key_protected': bool(API_KEY),
-            'supabase_configured': bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+        'supabase_configured': bool(SUPABASE_URL and SUPABASE_ANON_KEY)
         }
     })
 
