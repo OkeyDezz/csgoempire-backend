@@ -21,6 +21,7 @@ import re
 import threading
 import platform
 import subprocess
+import sys
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -577,6 +578,91 @@ def internal_error(error):
     """Handler para erros internos."""
     logger.error(f"Erro interno: {error}")
     return jsonify({'error': 'Erro interno do servidor'}), 500
+
+# Scheduler em background para atualizar preços/liquidez
+_scheduler_thread_started = False
+_next_scheduler_run_iso = None
+
+def _run_scheduler_once() -> None:
+    try:
+        logger.info("scheduler: iniciando execução única do scheduler_refresh.py --once")
+        start_ts = time.time()
+        # Executa como subprocess para isolar dependências e capturar output
+        result = subprocess.run(
+            [sys.executable, os.path.join(os.path.dirname(__file__), 'scheduler_refresh.py'), '--once'],
+            capture_output=True,
+            text=True,
+            timeout=60*60  # 60 minutos de segurança
+        )
+        duration = time.time() - start_ts
+        if result.returncode == 0:
+            # Tenta extrair a última linha com resumo
+            last_line = ''
+            if result.stdout:
+                last_line = result.stdout.strip().split('\n')[-1]
+            logger.info(f"scheduler: concluído com sucesso em {duration:.1f}s | resumo: {last_line}")
+        else:
+            err_preview = (result.stderr or '')[:300]
+            out_preview = (result.stdout or '')[-200:]
+            logger.error(f"scheduler: falhou (code={result.returncode}) em {duration:.1f}s | stderr: {err_preview} | tail stdout: {out_preview}")
+    except subprocess.TimeoutExpired:
+        logger.error("scheduler: timeout excedido durante execução do scheduler_refresh.py")
+    except Exception as e:
+        logger.error(f"scheduler: erro inesperado: {e}")
+
+
+def _scheduler_loop(interval_seconds: int, initial_delay: int) -> None:
+    global _next_scheduler_run_iso
+    if initial_delay > 0:
+        logger.info(f"scheduler: aguardando {initial_delay}s antes da primeira execução")
+        time.sleep(initial_delay)
+    while True:
+        start = datetime.now(timezone.utc)
+        _next_scheduler_run_iso = (start + timedelta(seconds=interval_seconds)).isoformat()
+        _run_scheduler_once()
+        logger.info(f"scheduler: próxima execução em ~{interval_seconds//3600}h (ETA: {_next_scheduler_run_iso})")
+        time.sleep(interval_seconds)
+
+
+def start_background_scheduler() -> None:
+    global _scheduler_thread_started
+    if _scheduler_thread_started:
+        return
+    run_flag = os.getenv('RUN_SCHEDULER', 'true').lower() == 'true'
+    interval = int(os.getenv('REFRESH_INTERVAL_SECONDS', str(6*60*60)))  # 6h padrão
+    initial_delay = int(os.getenv('SCHEDULER_INITIAL_DELAY_SECONDS', '30'))
+    if not run_flag:
+        logger.info("scheduler: desativado por RUN_SCHEDULER=false")
+        return
+    th = threading.Thread(target=_scheduler_loop, args=(interval, initial_delay), daemon=True)
+    th.start()
+    _scheduler_thread_started = True
+    logger.info(f"scheduler: iniciado em background (intervalo={interval}s, delay_inicial={initial_delay}s)")
+
+
+@app.route('/scheduler/run', methods=['POST'])
+@require_auth
+def scheduler_run_now():
+    """Dispara uma execução do scheduler imediatamente (protegido por API key)."""
+    threading.Thread(target=_run_scheduler_once, daemon=True).start()
+    return jsonify({'ok': True, 'message': 'scheduler disparado', 'time': datetime.now(timezone.utc).isoformat()})
+
+
+@app.route('/scheduler/status', methods=['GET'])
+@require_auth
+def scheduler_status():
+    return jsonify({
+        'ok': True,
+        'running': _scheduler_thread_started,
+        'next_eta': _next_scheduler_run_iso,
+        'interval_seconds': int(os.getenv('REFRESH_INTERVAL_SECONDS', str(6*60*60)))
+    })
+
+# Inicializa o scheduler quando o módulo é carregado (após app criado)
+try:
+    start_background_scheduler()
+except Exception as e:
+    logger.error(f"scheduler: falha ao iniciar: {e}")
 
 if __name__ == '__main__':
     # Configuração de porta para Railway
