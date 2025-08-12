@@ -8,7 +8,7 @@ if __name__ == '__main__':
     from license_backend import app
     import os
     
-    port = int(os.getenv('PORT', 8000))
+    port = int(os.getenv('PORT', 8080))
     debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     
     print(f"🚀 Starting CSGOEmpire Backend on port {port}")

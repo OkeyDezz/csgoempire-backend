@@ -41,13 +41,19 @@ JWT_EXPIRATION = 3600  # 1 hora
 API_KEY = os.getenv('BACKEND_API_KEY', secrets.token_urlsafe(32))
 
 # Configuração de logging avançado
+log_handlers = [logging.StreamHandler()]
+if os.getenv('ENABLE_FILE_LOG', 'false').lower() == 'true':
+    log_dir = os.getenv('LOG_DIR', '.')
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except Exception:
+        pass
+    log_handlers.append(logging.FileHandler(os.path.join(log_dir, 'backend.log')))
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('backend.log')
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger(__name__)
 
