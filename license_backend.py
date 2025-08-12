@@ -333,18 +333,27 @@ def market_lookup():
         logger.error(f"market_lookup error: {e}")
         return jsonify({'ok': False, 'error': 'internal_error'}), 500
 
+@app.route('/test', methods=['GET'])
+def test_endpoint():
+    """Endpoint de teste para verificar conectividade externa."""
+    return jsonify({
+        'status': 'success',
+        'message': 'Backend funcionando corretamente',
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'port': os.environ.get('PORT', '8080'),
+        'host': request.host,
+        'remote_addr': request.remote_addr,
+        'user_agent': request.headers.get('User-Agent', 'Unknown')
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check com informações de segurança."""
+    """Health check para o Railway."""
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now(timezone.utc).isoformat(),
-        'security': {
-            'jwt_enabled': True,
-            'rate_limiting': True,
-            'api_key_protected': bool(API_KEY),
-        'supabase_configured': bool(SUPABASE_URL and SUPABASE_ANON_KEY)
-        }
+        'service': 'CSGOEmpire Backend',
+        'version': '1.0.0'
     })
 
 @app.route('/activate', methods=['POST'])
@@ -547,14 +556,17 @@ def internal_error(error):
     return jsonify({'error': 'Erro interno do servidor'}), 500
 
 if __name__ == '__main__':
-    # Inicia o scheduler em uma thread separada
-    import threading
-    def run_scheduler():
-        import scheduler_refresh
-        scheduler_refresh.main()
+    # Configuração de porta para Railway
+    port = int(os.environ.get('PORT', 8080))
     
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
+    # Log de inicialização
+    logger.info(f"🚀 Iniciando backend na porta {port}")
+    logger.info(f"🌐 URL externa: https://fearless-wholeness-production-a9e0.up.railway.app")
     
-    # Inicia o servidor Flask
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    # Inicia o Flask
+    app.run(
+        host='0.0.0.0',  # Aceita conexões de qualquer IP
+        port=port,        # Usa porta do Railway
+        debug=False,      # Desabilita debug em produção
+        threaded=True     # Habilita múltiplas threads
+    )
