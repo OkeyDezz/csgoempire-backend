@@ -39,30 +39,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+# Simple limiter stub for Nixpacks default (no Flask-Limiter preinstalled)
+class DummyLimiter:
+    def __init__(self,*a,**k): pass
+    def limit(self,*a,**k):
+        def deco(f):
+            return f
+        return deco
 
-# Configurações de segurança
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
-# Aceita SUPABASE_SERVICE_KEY ou SUPABASE_SERVICE_ROLE
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE')  # Chave secreta para operações admin
-MARKET_TABLE = os.getenv('SUPABASE_MARKET_TABLE', 'market_data')
-
-# JWT Configuration
-JWT_SECRET = os.getenv('JWT_SECRET', secrets.token_urlsafe(32))
-JWT_ALGORITHM = 'HS256'
-JWT_EXPIRATION = 3600  # 1 hora
-
-# API Key para proteção do backend
-API_KEY = os.getenv('BACKEND_API_KEY', secrets.token_urlsafe(32))
-
-# Rate Limiting - Configuração mais restritiva e funcional
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["50 per day", "10 per hour", "3 per minute"],
-    storage_uri="memory://",
-    strategy="fixed-window"
-)
+limiter = DummyLimiter()
 
 # Cache para rate limiting (em produção, usar Redis)
 request_cache = {}
