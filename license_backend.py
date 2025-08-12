@@ -5,8 +5,6 @@ Implementa JWT, rate limiting, logging avançado e todas as medidas de seguranç
 """
 
 from flask import Flask, request, jsonify, g
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import requests
 import os
 import logging
@@ -123,7 +121,7 @@ def add_security_headers(response):
 def log_security_event(event_type: str, details: Dict, ip: str = None):
     """Log de eventos de segurança."""
     if not ip:
-        ip = get_remote_address()
+        ip = request.remote_addr or "unknown"
     
     log_entry = {
         'timestamp': datetime.now(timezone.utc).isoformat(),
@@ -341,7 +339,7 @@ def activate_license():
     """Ativa uma licença com JWT."""
     try:
         # Verifica se IP está bloqueado
-        client_ip = get_remote_address()
+        client_ip = request.remote_addr or "unknown"
         if is_ip_blocked(client_ip):
             log_security_event('blocked_ip_attempt', {'ip': client_ip})
             return jsonify({'ok': False, 'error': 'IP temporariamente bloqueado'}), 429
@@ -409,7 +407,7 @@ def validate_license():
     """Valida uma licença com JWT."""
     try:
         # Verifica se IP está bloqueado
-        client_ip = get_remote_address()
+        client_ip = request.remote_addr or "unknown"
         if is_ip_blocked(client_ip):
             log_security_event('blocked_ip_attempt', {'ip': client_ip})
             return jsonify({'ok': False, 'error': 'IP temporariamente bloqueado'}), 429
@@ -513,7 +511,7 @@ def get_info():
 def ratelimit_handler(e):
     """Handler para rate limiting."""
     log_security_event('rate_limit_exceeded', {
-        'ip': get_remote_address(),
+        'ip': request.remote_addr or "unknown",
         'limit': str(e.description)
     })
     return jsonify({'ok': False, 'error': 'Rate limit excedido'}), 429
