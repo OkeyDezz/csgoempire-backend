@@ -25,6 +25,21 @@ import subprocess
 # Carrega variáveis de ambiente
 load_dotenv()
 
+# Configurações de segurança
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
+# Aceita SUPABASE_SERVICE_KEY ou SUPABASE_SERVICE_ROLE
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE')
+MARKET_TABLE = os.getenv('SUPABASE_MARKET_TABLE', 'market_data')
+
+# JWT Configuration
+JWT_SECRET = os.getenv('JWT_SECRET', secrets.token_urlsafe(32))
+JWT_ALGORITHM = 'HS256'
+JWT_EXPIRATION = 3600  # 1 hora
+
+# API Key para proteção do backend
+API_KEY = os.getenv('BACKEND_API_KEY', secrets.token_urlsafe(32))
+
 # Configuração de logging avançado
 logging.basicConfig(
     level=logging.INFO,
