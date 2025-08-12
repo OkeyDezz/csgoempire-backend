@@ -157,11 +157,17 @@ def validate_api_key():
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         log_security_event('invalid_auth', {'reason': 'missing_auth_header'})
+        logger.error(f"DEBUG: Header de autorização ausente ou inválido: {auth_header}")
         return False
     
     provided_key = auth_header.split(' ')[1]
+    logger.info(f"DEBUG: API key fornecida: {provided_key[:10]}... (tamanho: {len(provided_key)})")
+    logger.info(f"DEBUG: API key esperada: {API_KEY[:10]}... (tamanho: {len(API_KEY)})")
+    logger.info(f"DEBUG: Comparação: {provided_key == API_KEY}")
+    
     if provided_key != API_KEY:
         log_security_event('invalid_auth', {'reason': 'invalid_api_key'})
+        logger.error(f"DEBUG: API key inválida - fornecida: {provided_key}, esperada: {API_KEY}")
         return False
     
     return True
@@ -332,6 +338,17 @@ def market_lookup():
     except Exception as e:
         logger.error(f"market_lookup error: {e}")
         return jsonify({'ok': False, 'error': 'internal_error'}), 500
+
+@app.route('/debug/config', methods=['GET'])
+def debug_config():
+    """Endpoint de debug para verificar configuração (REMOVER EM PRODUÇÃO)."""
+    return jsonify({
+        'api_key_length': len(API_KEY) if API_KEY else 0,
+        'api_key_prefix': API_KEY[:10] + '...' if API_KEY else 'None',
+        'jwt_secret_length': len(JWT_SECRET) if JWT_SECRET else 0,
+        'supabase_configured': bool(SUPABASE_URL and SUPABASE_ANON_KEY),
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    })
 
 @app.route('/test', methods=['GET'])
 def test_endpoint():
