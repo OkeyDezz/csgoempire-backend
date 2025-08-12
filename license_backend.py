@@ -557,7 +557,7 @@ def internal_error(error):
 
 if __name__ == '__main__':
     # Configuração de porta para Railway
-    port = int(os.environ.get('PORT', 5000))  # Railway usa 5000 por padrão
+    port = int(os.environ.get('PORT', 8080))  # Railway configurado para 8080
     
     # Log de inicialização detalhado
     logger.info(f"🚀 Iniciando backend na porta {port}")
@@ -571,7 +571,7 @@ if __name__ == '__main__':
     try:
         app.run(
             host='0.0.0.0',  # Aceita conexões de qualquer IP
-            port=port,        # Usa porta do Railway
+            port=port,        # Usa porta 8080 do Railway
             debug=False,      # Desabilita debug em produção
             threaded=True     # Habilita múltiplas threads
         )

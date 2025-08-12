@@ -38,8 +38,8 @@ def run_flask():
 def check_flask_health():
     """Verifica se o Flask está respondendo."""
     try:
-        # Usa a porta do Railway ou padrão 5000
-        port = os.environ.get('PORT', '5000')
+        # Usa a porta 8080 configurada no Railway
+        port = os.environ.get('PORT', '8080')
         response = requests.get(f"http://localhost:{port}/health", timeout=5)
         return response.status_code == 200
     except:
