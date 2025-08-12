@@ -557,16 +557,24 @@ def internal_error(error):
 
 if __name__ == '__main__':
     # Configuração de porta para Railway
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT', 5000))  # Railway usa 5000 por padrão
     
-    # Log de inicialização
+    # Log de inicialização detalhado
     logger.info(f"🚀 Iniciando backend na porta {port}")
-    logger.info(f"🌐 URL externa: https://fearless-wholeness-production-a9e0.up.railway.app")
+    logger.info(f"🌐 Host: 0.0.0.0")
+    logger.info(f"🔧 Variáveis de ambiente:")
+    logger.info(f"   PORT: {os.environ.get('PORT', 'NÃO DEFINIDO')}")
+    logger.info(f"   RAILWAY_STATIC_URL: {os.environ.get('RAILWAY_STATIC_URL', 'NÃO DEFINIDO')}")
+    logger.info(f"   RAILWAY_PUBLIC_DOMAIN: {os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'NÃO DEFINIDO')}")
     
     # Inicia o Flask
-    app.run(
-        host='0.0.0.0',  # Aceita conexões de qualquer IP
-        port=port,        # Usa porta do Railway
-        debug=False,      # Desabilita debug em produção
-        threaded=True     # Habilita múltiplas threads
-    )
+    try:
+        app.run(
+            host='0.0.0.0',  # Aceita conexões de qualquer IP
+            port=port,        # Usa porta do Railway
+            debug=False,      # Desabilita debug em produção
+            threaded=True     # Habilita múltiplas threads
+        )
+    except Exception as e:
+        logger.error(f"❌ Erro ao iniciar Flask: {e}")
+        exit(1)
