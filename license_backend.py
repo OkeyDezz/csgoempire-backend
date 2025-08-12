@@ -547,20 +547,14 @@ def internal_error(error):
     return jsonify({'error': 'Erro interno do servidor'}), 500
 
 if __name__ == '__main__':
-    # Valida configurações
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        logger.error("❌ SUPABASE_URL e SUPABASE_ANON_KEY são obrigatórios!")
-        exit(1)
+    # Inicia o scheduler em uma thread separada
+    import threading
+    def run_scheduler():
+        import scheduler_refresh
+        scheduler_refresh.main()
     
-    logger.info("🚀 Iniciando backend seguro de validação de licenças...")
-    logger.info(f"📋 Supabase URL: {SUPABASE_URL}")
-    logger.info(f"🔐 JWT Secret: {JWT_SECRET[:20]}...")
-    logger.info(f"🛡️ API Key: {API_KEY[:20]}...")
-    logger.info(f"⚡ Rate Limiting: Ativado")
-    logger.info(f"📝 Logging Avançado: Ativado")
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
     
-    # Configurações do Flask
-    port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    # Inicia o servidor Flask
+    app.run(host='0.0.0.0', port=8080, debug=False)
