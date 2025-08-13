@@ -625,38 +625,17 @@ def _scheduler_loop(interval_seconds: int, initial_delay: int) -> None:
 
 
 def start_background_scheduler() -> None:
-    global _scheduler_thread_started
-    if _scheduler_thread_started:
-        return
-    run_flag = os.getenv('RUN_SCHEDULER', 'true').lower() == 'true'
-    interval = int(os.getenv('REFRESH_INTERVAL_SECONDS', str(6*60*60)))  # 6h padrão
-    initial_delay = int(os.getenv('SCHEDULER_INITIAL_DELAY_SECONDS', '30'))
-    if not run_flag:
-        logger.info("scheduler: desativado por RUN_SCHEDULER=false")
-        return
-    th = threading.Thread(target=_scheduler_loop, args=(interval, initial_delay), daemon=True)
-    th.start()
-    _scheduler_thread_started = True
-    logger.info(f"scheduler: iniciado em background (intervalo={interval}s, delay_inicial={initial_delay}s)")
-
+    logger.info("scheduler: desativado neste serviço de licenças (usar serviço updater separado)")
 
 @app.route('/scheduler/run', methods=['POST'])
 @require_auth
 def scheduler_run_now():
-    """Dispara uma execução do scheduler imediatamente (protegido por API key)."""
-    threading.Thread(target=_run_scheduler_once, daemon=True).start()
-    return jsonify({'ok': True, 'message': 'scheduler disparado', 'time': datetime.now(timezone.utc).isoformat()})
-
+    return jsonify({'ok': False, 'error': 'scheduler_disabled'}), 503
 
 @app.route('/scheduler/status', methods=['GET'])
 @require_auth
 def scheduler_status():
-    return jsonify({
-        'ok': True,
-        'running': _scheduler_thread_started,
-        'next_eta': _next_scheduler_run_iso,
-        'interval_seconds': int(os.getenv('REFRESH_INTERVAL_SECONDS', str(6*60*60)))
-    })
+    return jsonify({'ok': False, 'error': 'scheduler_disabled'}), 503
 
 # Inicializa o scheduler quando o módulo é carregado (após app criado)
 try:

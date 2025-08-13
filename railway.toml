@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "bash -lc \"python -u scheduler_refresh.py --once || true & exec python -u main.py\""
+startCommand = "bash -lc \"exec python -u main.py\""
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
